@@ -3,7 +3,8 @@ This is an implementation of a regex_engine which takes a regular expression and
 
 **To try it out**
 1. ```make``` compile and link the final executable.
-1. make creatsn the executable regex_engine. To run the application you need to run this executable and pass in the regular expression and the string(s) you want to try out. 
+1. make creats  the executable regex_engine. To run the application you need to run this executable and pass in the regular expression and the string(s) you want to try out. 
+```./bin/regex_engine <regular expression> <space seperated strings>```
 1. The programme will output whethere the given string matches the regular expression given
 
 ***Example***
