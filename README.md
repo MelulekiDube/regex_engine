@@ -8,3 +8,4 @@ This is an implementation of a regex_engine which takes a regular expression and
 1. The programme will output whethere the given string matches the regular expression given
 
 ***Example***
+![alt text](example/example_run.png)
