@@ -7,7 +7,7 @@ CC := gcc
 SRCDIR := src
 BUILDDIR := build
 BINDIR := bin
-TARGET := bin/runner
+TARGET := bin/regex_engine
 TTARGET := bin/tester
 WFIND := C:\cygwin64\bin\find
 
