@@ -22,8 +22,8 @@ typedef union Ptrlist Ptrlist;
  * If c < 256, labeled arrow with character c to out.
  */
 enum{
-	Match = 256,
-	Split = 257
+	MATCH = 256,
+	SPLIT = 257
 };
 
 /**State struct declaration*/
@@ -50,7 +50,7 @@ struct Frag
 	State *start;
 	Ptrlist *out;
 };
-Frag* frag(State *start, Ptrlist *out); //creates a new frag object
+Frag frag(State *start, Ptrlist *out); //creates a new frag object
 /*End of Frag Declaration*/
 
 /*Declaration of list*/
@@ -60,6 +60,12 @@ struct List
 	int n;
 };
 /*End of List Declaration*/
+
+/*Declaration of Ptrlist*/
+union Ptrlist{
+	Ptrlist *next;
+	State *s;
+};
 
 Ptrlist *list1(State **outp);// creates a new pointer list containing the single pointer outp
 Ptrlist *append(Ptrlist *l1, Ptrlist *l2);//concatenates two pointer lists, returning the result
@@ -75,4 +81,19 @@ void reg2post(char *re, char *pf);
 * 	Method that will insert the explicit concatenation characters
 */
 void insert_concat_chars(char *re, char *p);
+
+/*
+	Method to convert the postfix regex into an NFA
+*/
+State* post2nfa(char *postfix);
+
+int match(State *start, char *s); 
+
+int ismatch(List *l);
+
+List* startlist(State *s, List *l);
+
+void step(List *clist, int c, List *nlist);
+
+void addstate(List *l, State *s);
 #endif

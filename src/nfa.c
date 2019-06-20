@@ -1,6 +1,27 @@
 #include <stdio.h>
 #include "nfa.h"
 
+static int nstate = 0;
+State matchstate = {MATCH, NULL, NULL, 0};
+List l1, l2;
+static int listid;
+
+State *state(int c, State *out, State *out1){ //create a new state object
+	State *s = create(State, 1);
+	s->c = c;
+	s->out = out;
+	s->out1 = out1;
+	s->lastlist = 0;
+	
+	++nstate;
+	return s;
+}
+
+Frag frag(State *start, Ptrlist *out){ //creates a new frag object
+	Frag f = {start, out};
+	return f;//this returns a copy of f
+}
+
 /*
 	Given an operator represented by a character this method will give us a value for that op so that we can compare operators precedence afterwards. Basically this method maps an operator to an int value of its precedence
 */
@@ -66,7 +87,7 @@ void reg2post(char *re, char *pf){
 				while(peek(opstack)!='('){
 					push(p, pop(opstack));
 				}
-				pop(opstack);
+				--opstack;//this is to turn off warnings with using pop()
 				natom = pop(pa);
 				++natom;
 				break;
@@ -88,11 +109,155 @@ void reg2post(char *re, char *pf){
 	push(p, '\0');//put the null terminator to end of strin
 }
 
-int main(){
-	char *regex= "a(bb)+a" ;//expect  A B C * + D +
-	char postfix[80];
-	//insert_concat_chars(regex, reg);
-	reg2post(regex, postfix);
-	printf("Equivalent postfix is: %s\n", postfix);
+/*
+	Method to convert the postfix regex into an NFA
+*/
+State* post2nfa(char *postfix){
+	char c;
+	Frag stack[1000], *stackp, e1, e2, e;
+	State *s;
+	
+	stackp = stack;
+	while((c=*postfix++)){
+		switch(c){
+			default: //these are literats they push new NFA fragemetds into the stack
+				s = state(c, NULL, NULL);
+				push(stackp, frag(s, list1(&s->out)));
+				break;
+			case '.':
+				e2 = pop(stackp);
+				e1 = pop(stackp);
+				patch(e1.out, e2.start);
+				push(stackp, frag(e1.start, e2.out));
+				break;
+			case '|':
+				e2 = pop(stackp);
+				e1 = pop(stackp);
+				s = state(SPLIT, e1.start, e2.start);
+				push(stackp, frag(s, append(e1.out, e2.out)));
+				break;
+			case '?'://0 or 1
+				e = pop(stackp);
+				s = state(SPLIT, e.start, NULL);
+				push(stackp, frag(s, append(e.out, list1(&s->out1))));
+				break;
+			case '+'://1 or more
+				e = pop(stackp);
+				s = state(SPLIT, e.start, NULL);
+				patch(e.out, s);
+				push(stackp, frag(e.start, list1(&s->out1)));
+				break;
+			case '*'://0 or more
+				e = pop(stackp);
+				s = state(SPLIT, e.start, NULL);
+				patch(e.out, s);
+				push(stackp, frag(s, list1(&s->out1)));
+				break;
+		}
+	}
+	e = pop(stackp);
+	patch(e.out, &matchstate);
+	return e.start;
+}
+
+/* Create singleton list containing just outp. */
+Ptrlist *list1(State **outp){// creates a new pointer list containing the single pointer outp
+	Ptrlist *l;
+	
+	l = (Ptrlist*)outp;
+	l->next = NULL;///potential error
+	return l;
+}
+
+void patch(Ptrlist *l, State *s){
+	//h connects the dangling arrows in the pointer list l to the state s: it sets *outp = s for
+	while(l){
+		Ptrlist* next = l->next;
+		l->s = s;
+		l  = next;
+	}
+}
+
+Ptrlist *append(Ptrlist *l1, Ptrlist *l2){
+	//concatenates two pointer lists, returning the result
+	Ptrlist* temp = l1;
+	while(temp->next)
+		temp = temp->next;
+	temp->next = l2;
+	return l1;
+}
+
+int match(State *start, char *s){
+	List *clist, *nlist, *t;
+	char c;
+	/* l1 and l2 are preallocated globals */
+	clist = startlist(start, &l1);
+	nlist = &l2;
+	while((c=*s++)){
+		step(clist, c, nlist);
+		t = clist; clist = nlist; nlist = t;	/* swap clist, nlist */
+	}
+	return ismatch(clist);
+}
+
+
+List* startlist(State *s, List *l){
+	listid++;
+	l->n=0;
+	addstate(l,s);
+	return l;
+}
+
+void step(List *clist, int c, List *nlist){
+	State* s;
+	for(int i=0; i<clist->n; ++i){
+		s = clist->s[i];
+		if(s->c == c)
+			addstate(nlist, s->out);
+	}
+}
+
+void addstate(List *l, State *s){
+	if(s == NULL || s->lastlist == listid)
+		return;
+	if(s->c == SPLIT){
+		/* follow unlabeled arrows */
+		addstate(l, s->out);
+		addstate(l, s->out1);
+	}
+	l->s[l->n++] = s;
+}
+
+int ismatch(List *l){
+	
+	for(int i=0; i<l->n; ++i)
+		if(l->s[i] == &matchstate)
+			return 1;
+	return 0;
+}
+
+int main(int argc, char *argv[]){
+	int i;
+	char post[10000];
+	State *start;
+	if(argc< 3){
+		fprintf(stderr, "usage: nfa regexp string...\n");
+		return 1;
+	}
+	reg2post(argv[1], post);
+	start = post2nfa(post);
+	if(!start){
+		fprintf(stderr, "error in post2nfa %s\n", post);
+		return 1;
+	}
+	l1.s = malloc(nstate*sizeof l1.s[0]);
+	l2.s = malloc(nstate*sizeof l2.s[0]);
+	for(i=2; i<argc; i++){
+		if(match(start, argv[i])){
+			printf("%s matches\n", argv[i]);
+		}else{
+			printf("%s does not match\n", argv[i]);
+		}
+	}
 	return 0;
 }
